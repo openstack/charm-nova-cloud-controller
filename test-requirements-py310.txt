@@ -20,8 +20,6 @@ async-generator==1.10
     # via
     #   zaza
     #   zaza-openstack
-async-timeout==5.0.1
-    # via aiohttp
 attrs==26.1.0
     # via
     #   aiohttp
@@ -35,8 +33,6 @@ babel==2.18.0
     #   python-octaviaclient
     #   python-openstackclient
 backports-datetime-fromisoformat==2.0.3
-    # via juju
-backports-strenum==1.3.1
     # via juju
 bcrypt==5.0.0
     # via paramiko
@@ -165,8 +161,6 @@ idna==3.18
     #   requests
     #   trustme
     #   yarl
-importlib-metadata==9.0.0
-    # via keyring
 invoke==3.0.3
     # via paramiko
 iso8601==2.1.0
@@ -728,18 +722,15 @@ typing-extensions==4.15.0
     # via
     #   aiohttp
     #   aiosignal
-    #   dogpile-cache
     #   juju
     #   keystoneauth1
-    #   multidict
     #   openstacksdk
     #   os-service-types
     #   oslo-context
     #   typing-inspect
-    #   virtualenv
 typing-inspect==0.9.0
     # via juju
-ujson==5.12.1
+ujson==5.13.0
     # via gnocchiclient
 urllib3==2.7.0
     # via
@@ -773,9 +764,9 @@ zaza==2024.1.1
     #   zaza-openstack
 zaza-openstack @ git+https://github.com/openstack-charmers/zaza-openstack-tests.git
     # via -r test-requirements.in
-zipp==4.1.0
-    # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
-# juju
-# kubernetes
+juju==3.6.1.3
+    # via zaza
+kubernetes==30.1.0
+    # via juju
