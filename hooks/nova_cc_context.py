@@ -428,6 +428,13 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
             else:
                 ctxt['pci_alias'] = json.dumps(aliases, sort_keys=True)
 
+        cmp_os_release = ch_utils.CompareOpenStackReleases(
+            ch_utils.os_release('nova-common'))
+        # Require explicit operator opt-in after compute inventories exist.
+        if (cmp_os_release >= 'antelope' and
+                hookenv.config('pci-in-placement')):
+            ctxt['pci_in_placement'] = True
+
         ctxt['disk_allocation_ratio'] = hookenv.config('disk-allocation-ratio')
         ctxt['cpu_allocation_ratio'] = hookenv.config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = hookenv.config('ram-allocation-ratio')

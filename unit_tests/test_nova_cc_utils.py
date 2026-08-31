@@ -15,6 +15,7 @@
 from collections import OrderedDict
 import subprocess
 import charmhelpers.core.unitdata
+import charmhelpers.contrib.openstack.templating as os_templating
 from unittest.mock import patch, MagicMock, call
 
 from unit_tests.test_utils import (
@@ -259,6 +260,19 @@ class NovaCCUtilsTests(CharmTestCase):
         self.config.side_effect = self.test_config.get
         utils._BASE_RESOURCE_MAP = None  # reset this for each test
         self.maxDiff = None
+
+    def test_nova_conf_template_release_selection(self):
+        yoga_renderer = os_templating.OSConfigRenderer(
+            templates_dir=utils.TEMPLATES, openstack_release='yoga')
+        antelope_renderer = os_templating.OSConfigRenderer(
+            templates_dir=utils.TEMPLATES, openstack_release='caracal')
+
+        self.assertIn(
+            'templates/yoga/nova.conf',
+            yoga_renderer._get_template('nova.conf').filename)
+        self.assertIn(
+            'templates/antelope/nova.conf',
+            antelope_renderer._get_template('nova.conf').filename)
 
     def test_resolve_services(self):
         # Icehouse with disable-aws-compat = True

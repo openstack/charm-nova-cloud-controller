@@ -424,6 +424,12 @@ class NovaComputeContextTests(CharmTestCase):
         "vendor_id": "10de",
         "device_type": "type-PCI"}
 
+    _pci_alias_resource_class = {
+        "name": "b300-nvlink-2gpu",
+        "device_type": "type-PF",
+        "resource_class": "CUSTOM_B300_NVLINK_2GPU",
+        "numa_policy": "required"}
+
     _pci_alias_list = [_pci_alias1, _pci_alias2]
 
     @mock.patch('charmhelpers.contrib.openstack.ip.config')
@@ -495,6 +501,76 @@ class NovaComputeContextTests(CharmTestCase):
             ('{"capability_type": "pci", "device_type": "type-PCI", '
              '"name": " Cirrus Logic ", "product_id": "0ff2", '
              '"vendor_id": "10de"}'))
+
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
+    @mock.patch('charmhelpers.core.hookenv.local_unit')
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
+    def test_pci_alias_resource_class(self, mock_config, local_unit,
+                                      mock_unit_get, mock_resolve_address):
+        local_unit.return_value = 'nova-cloud-controller/0'
+        mock_config.side_effect = self.test_config.get
+        mock_unit_get.return_value = '127.0.0.1'
+        mock_resolve_address.return_value = '10.0.0.1'
+        self.test_config.set(
+            'pci-alias', json.dumps(self._pci_alias_resource_class))
+
+        ctxt = context.NovaConfigContext()()
+
+        self.assertEqual(
+            'CUSTOM_B300_NVLINK_2GPU',
+            json.loads(ctxt['pci_alias'])['resource_class'])
+
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
+    @mock.patch('charmhelpers.core.hookenv.local_unit')
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
+    def test_pci_in_placement(self, mock_config, local_unit, mock_unit_get,
+                              mock_resolve_address):
+        local_unit.return_value = 'nova-cloud-controller/0'
+        mock_config.side_effect = self.test_config.get
+        mock_unit_get.return_value = '127.0.0.1'
+        mock_resolve_address.return_value = '10.0.0.1'
+        self.os_release.return_value = 'antelope'
+        self.test_config.set('pci-in-placement', True)
+
+        ctxt = context.NovaConfigContext()()
+
+        self.assertTrue(ctxt['pci_in_placement'])
+
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
+    @mock.patch('charmhelpers.core.hookenv.local_unit')
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
+    def test_pci_in_placement_ignored_before_antelope(
+            self, mock_config, local_unit, mock_unit_get,
+            mock_resolve_address):
+        local_unit.return_value = 'nova-cloud-controller/0'
+        mock_config.side_effect = self.test_config.get
+        mock_unit_get.return_value = '127.0.0.1'
+        mock_resolve_address.return_value = '10.0.0.1'
+        self.os_release.return_value = 'yoga'
+        self.test_config.set('pci-in-placement', True)
+
+        ctxt = context.NovaConfigContext()()
+
+        self.assertNotIn('pci_in_placement', ctxt)
+
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
+    @mock.patch('charmhelpers.core.hookenv.local_unit')
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
+    def test_pci_in_placement_default(self, mock_config, local_unit,
+                                      mock_unit_get, mock_resolve_address):
+        local_unit.return_value = 'nova-cloud-controller/0'
+        mock_config.side_effect = self.test_config.get
+        mock_unit_get.return_value = '127.0.0.1'
+        mock_resolve_address.return_value = '10.0.0.1'
+        self.os_release.return_value = 'caracal'
+
+        ctxt = context.NovaConfigContext()()
+
+        self.assertNotIn('pci_in_placement', ctxt)
 
     @mock.patch('charmhelpers.contrib.network.ip.format_ipv6_addr')
     @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')

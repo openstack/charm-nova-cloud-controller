@@ -57,6 +57,19 @@ Defines the network manager for the cloud. Supported values are:
 When using 'Neutron' the [neutron-gateway][neutron-gateway-charm] charm should
 be used to provide L3 routing and DHCP Services.
 
+#### PCI tracking in Placement
+
+From the Antelope release, `pci-in-placement` enables Nova API, scheduler, and
+conductor processes to schedule and claim PCI devices through Placement. PCI
+aliases may request custom Placement resource classes.
+
+Before enabling this option, configure `pci-device-spec` and enable
+`pci-report-in-placement` on every relevant nova-compute application. Allow the
+compute services to reconcile, then verify their PCI child resource providers
+and inventories in Placement. Enabling controller-side scheduling before all
+computes report their PCI inventories can prevent valid PCI requests from
+scheduling.
+
 #### `openstack-origin`
 
 States the software sources. A common value is an OpenStack UCA release (e.g.

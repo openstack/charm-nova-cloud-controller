@@ -298,8 +298,8 @@ options:
     type: string
     default:
     description: |
-      The pci-passthrough-whitelist option of nova-compute charm is used for
-      specifying which PCI devices are allowed passthrough. pci-alias is more
+      The pci-device-spec option of nova-compute charm is used for specifying
+      which PCI devices are allowed passthrough. pci-alias is more
       a convenience that can be used in conjunction with Nova flavor properties
       to automatically assign required PCI devices to new instances. You could,
       for example, have a GPU flavor or a SR-IOV flavor:
@@ -309,8 +309,25 @@ options:
       This configures a new PCI alias 'a1' which will request a PCI device with
       a vendor id of 0x8086 and a product id of 10ca.
       .
-      For more information about the syntax of pci_alias, refer to
-      https://docs.openstack.org/ocata/config-reference/compute/config-options.html
+      Aliases may select devices by resource_class when PCI tracking in
+      Placement is enabled. For more information, refer to the Nova PCI
+      passthrough documentation.
+  pci-in-placement:
+    type: boolean
+    default: false
+    description: |
+      Enable scheduling and claiming PCI devices using Placement. This maps to
+      [filter_scheduler] pci_in_placement in nova.conf and is supported from
+      Antelope. The setting is applied to nova-api, nova-scheduler, and all
+      nova-conductor processes managed by this charm.
+      .
+      This option defaults to false, so existing deployments remain disabled
+      during charm and OpenStack upgrades unless an operator explicitly
+      enables it.
+      .
+      Enable this only after pci-report-in-placement is enabled on all relevant
+      nova-compute hosts and their PCI inventories have been verified in
+      Placement.
   api-rate-limit-rules:
     type: string
     default:
