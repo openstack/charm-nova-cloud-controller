@@ -198,6 +198,7 @@ RESTART_MAP_ROCKY_ACTUAL = OrderedDict([
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
     ('/etc/apache2/ports.conf', ['apache2']),
     ('/etc/apache2/sites-enabled/wsgi-api-os-compute.conf', ['apache2']),
+    ('/etc/nova/mod_wsgi.conf.d/oslo-messaging-rabbit.conf', ['apache2']),
     ('/etc/apache2/sites-enabled/wsgi-placement-api.conf', ['apache2']),
     ('/etc/apache2/sites-enabled/wsgi-openstack-metadata.conf', ['apache2']),
 ])
@@ -445,6 +446,19 @@ class NovaCCUtilsTests(CharmTestCase):
         _map = utils.restart_map()
         self.assertIsInstance(_map, OrderedDict)
         self.assertEqual(_map, RESTART_MAP_ROCKY_ACTUAL)
+
+    @patch('charmhelpers.core.hookenv.relation_ids')
+    @patch('charmhelpers.contrib.openstack.neutron.os_release')
+    @patch('os.path.exists')
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_wsgi_conf(
+            self, subcontext, _exists, _os_release, rids):
+        _exists.return_value = False
+        self.enable_memcache.return_value = False
+        rids.return_value = []
+        _os_release.return_value = 'caracal'
+        self.os_release.return_value = 'caracal'
+        self.assertIn(utils.NOVA_WSGI_CONF, utils.resource_map())
 
     @patch('charmhelpers.core.hookenv.relation_ids')
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
@@ -2007,6 +2021,12 @@ class NovaCCUtilsTests(CharmTestCase):
         exists.return_value = True
         utils.disable_deprecated_nova_placement_apache_site()
         remove.assert_called()
+
+    @patch('os.makedirs')
+    def test_ensure_wsgi_conf_dir(self, makedirs):
+        utils.ensure_wsgi_conf_dir()
+        makedirs.assert_called_once_with('/etc/nova/mod_wsgi.conf.d',
+                                         exist_ok=True)
 
     @patch.object(utils.ch_context, 'SharedDBContext')
     @patch.object(utils, 'get_cell_details')

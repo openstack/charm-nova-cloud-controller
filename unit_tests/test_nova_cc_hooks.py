@@ -68,6 +68,7 @@ TO_PATCH = [
     'hooks.nova_cc_utils.determine_packages',
     'hooks.nova_cc_utils.determine_ports',
     'hooks.nova_cc_utils.do_openstack_upgrade',
+    'hooks.nova_cc_utils.ensure_wsgi_conf_dir',
     'hooks.nova_cc_utils.get_ca_cert_b64',
     'hooks.nova_cc_utils.migrate_nova_databases',
     'hooks.nova_cc_utils.placement_api_enabled',
@@ -206,6 +207,23 @@ class NovaCCHooksTests(CharmTestCase):
             ['nova-scheduler', 'nova-api-ec2'], fatal=True)
         self.execd_preinstall.assert_called()
         self.service_pause.assert_called()
+
+    @patch.object(utils, 'resource_map')
+    @patch.object(hooks.ncc_utils.ch_templating, 'OSConfigRenderer')
+    def test_resolve_configs_wsgi_conf_dir(self, mock_renderer,
+                                           mock_resource_map):
+        mock_resource_map.return_value = {
+            utils.NOVA_WSGI_CONF: {'contexts': [], 'services': ['apache2']}}
+        hooks.resolve_CONFIGS()
+        self.ensure_wsgi_conf_dir.assert_called_once_with()
+
+    @patch.object(utils, 'resource_map')
+    @patch.object(hooks.ncc_utils.ch_templating, 'OSConfigRenderer')
+    def test_resolve_configs_no_wsgi_conf_dir(self, mock_renderer,
+                                              mock_resource_map):
+        mock_resource_map.return_value = {}
+        hooks.resolve_CONFIGS()
+        self.ensure_wsgi_conf_dir.assert_not_called()
 
     @patch.object(utils, 'set_shared_metadatasecret')
     @patch.object(utils, 'get_shared_metadatasecret')
