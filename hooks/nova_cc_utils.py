@@ -111,6 +111,8 @@ NEUTRON_CONF_DIR = "/etc/neutron"
 NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
 NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
 VENDORDATA_FILE = '%s/vendor_data.json' % NOVA_CONF_DIR
+NOVA_WSGI_CONF_DIR = '%s/mod_wsgi.conf.d' % NOVA_CONF_DIR
+NOVA_WSGI_CONF = '%s/oslo-messaging-rabbit.conf' % NOVA_WSGI_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_PORTS_CONF = '/etc/apache2/ports.conf'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
@@ -333,6 +335,11 @@ def resource_map(actual_services=True):
             WSGI_NOVA_API_OS_COMPUTE_CONF,
             _resource_map,
             nova_cc_context.ComputeAPIHAProxyContext())
+        # The nova WSGI apps run with prog 'mod_wsgi', so oslo.config also
+        # reads NOVA_WSGI_CONF_DIR for them and not for the other services.
+        _resource_map[NOVA_WSGI_CONF] = {
+            'contexts': [],
+            'services': ['apache2']}
 
     if actual_services and placement_api_enabled():
         _replace_service_with_apache2(
@@ -368,7 +375,11 @@ def register_configs(release=None):
     release = release or ch_utils.os_release('nova-common')
     configs = ch_templating.OSConfigRenderer(
         templates_dir=TEMPLATES, openstack_release=release)
-    for cfg, rscs in resource_map().items():
+    _resource_map = resource_map()
+    if NOVA_WSGI_CONF in _resource_map:
+        # OSConfigRenderer.write() does not create parent directories.
+        ensure_wsgi_conf_dir()
+    for cfg, rscs in _resource_map.items():
         configs.register(cfg, rscs['contexts'])
     return configs
 
@@ -1992,6 +2003,11 @@ def disable_package_apache_site(service_reload=False):
 
     if site_changed and service_reload:
         ch_host.service_reload('apache2', restart_on_failure=True)
+
+
+def ensure_wsgi_conf_dir():
+    """Ensure the config directory that only nova WSGI apps read exists."""
+    os.makedirs(NOVA_WSGI_CONF_DIR, exist_ok=True)
 
 
 def stop_deprecated_services():
