@@ -8,6 +8,35 @@ The nova-cloud-controller charm deploys a suite of OpenStack Nova services:
 
 # Usage
 
+## Remote OVN chassis metadata
+
+Relate dedicated OVN chassis to the controller metadata API:
+
+    juju integrate ovn-dedicated-chassis:nova-compute nova-cloud-controller:neutron-plugin-remote
+
+This requires a dedicated-chassis revision that consumes the remote metadata
+endpoint, protocol, port and CA certificate. Each controller unit advertises
+the canonical internal metadata address, port 8775 and the controller's
+leader-managed signing secret. With hacluster and a VIP configured, chassis
+use that VIP and the existing controller HAProxy metadata backends. The
+relation itself does not enable HA or configure network connectivity.
+
+Remote chassis must reach the advertised endpoint. HTTPS advertisements include
+the controller CA when available; chassis must verify the server certificate.
+HTTP requires a protected network path. Incoming chassis credentials never
+configure the controller metadata API.
+
+Keep the local nova-compute/ovn-chassis relation. Local metadata agents retain
+their existing compute secrets; remote agents use the controller secret. Each
+agent's signing secret must match the metadata API it calls, not every other
+agent in the deployment. Do not relate a chassis to both controller and compute
+metadata providers during migration: remove its old compute remote relation
+and add the controller relation. Leave local subordinate relations intact.
+
+The controller API must be able to serve all instances behind the related
+chassis. In deployments with per-cell metadata, verify cell routing before
+switching endpoints.
+
 ## Configuration
 
 This section covers common and/or important configuration options. See file
