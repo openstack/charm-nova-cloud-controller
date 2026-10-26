@@ -295,6 +295,7 @@ def config_changed():
 
     if hookenv.is_leader() and not ncc_utils.get_shared_metadatasecret():
         ncc_utils.set_shared_metadatasecret()
+    publish_remote_metadata()
     for rid in hookenv.relation_ids('ha'):
         ha_joined(rid)
     if (not ch_utils.is_unit_paused_set() and
@@ -672,6 +673,7 @@ def get_compute_config(remote_restart=False):
 
 
 def update_nova_relation(remote_restart=False):
+    publish_remote_metadata()
     for rid in hookenv.relation_ids('cloud-compute'):
         compute_joined(rid=rid, remote_restart=remote_restart)
     for rid in hookenv.relation_ids('quantum-network-service'):
@@ -1013,6 +1015,29 @@ def compute_departed():
     ncc_utils.clear_hostset_cache_for(relation_data.get('private-address'))
 
 
+@hooks.hook('neutron-plugin-remote-relation-joined')
+def publish_remote_metadata(rid=None):
+    """Advertise the controller metadata endpoint and its existing secret.
+
+    Use the canonical internal address so clustered deployments advertise the
+    VIP. Remote chassis never supply credentials to the controller API.
+    """
+    rids = ([rid] if rid is not None else
+            hookenv.relation_ids('neutron-plugin-remote'))
+    if not rids:
+        return
+    metadata = ncc_utils.get_metadata_settings(CONFIGS)
+    settings = {
+        'private-address': metadata.get('nova-metadata-host'),
+        'metadata-shared-secret': metadata.get('shared-metadata-secret'),
+        'nova-metadata-protocol': metadata.get('nova-metadata-protocol'),
+        'nova-metadata-port': metadata.get('nova-metadata-port'),
+        'ca_cert': ncc_utils.get_ca_cert_b64() or None,
+    }
+    for relation in rids:
+        hookenv.relation_set(relation_id=relation, relation_settings=settings)
+
+
 @hooks.hook('neutron-network-service-relation-joined',
             'quantum-network-service-relation-joined')
 def quantum_joined(rid=None, remote_restart=False):
@@ -1082,6 +1107,7 @@ def cluster_changed():
                     'services')
     # The shared metadata secret is stored in the leader-db and if its changed
     # the gateway needs to know.
+    publish_remote_metadata()
     for rid in hookenv.relation_ids('quantum-network-service'):
         quantum_joined(rid=rid, remote_restart=False)
 
@@ -1230,6 +1256,7 @@ def upgrade_charm():
 
     leader_init_db_if_ready_allowed_units()
 
+    publish_remote_metadata()
     update_nrpe_config()
     # call the policy overrides handler which will install any policy overrides
     policyd.maybe_do_policyd_overrides(
@@ -1328,6 +1355,7 @@ def certs_joined(relation_id=None):
 def certs_changed(relation_id=None, unit=None):
     cert_utils.process_certificates('nova', relation_id, unit, group='nova')
     configure_https()
+    publish_remote_metadata()
     for rid in hookenv.relation_ids('cloud-compute'):
         compute_joined(rid=rid, remote_restart=False)
     for rid in hookenv.relation_ids('quantum-network-service'):

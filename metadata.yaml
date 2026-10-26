@@ -50,6 +50,9 @@ requires:
     interface: quantum
   neutron-api:
     interface: neutron-api
+  neutron-plugin-remote:
+    interface: neutron-plugin-remote
+    scope: global
   ha:
     interface: hacluster
     scope: container

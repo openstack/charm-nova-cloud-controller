@@ -114,6 +114,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.ns_query.return_value = None
         self.is_unit_paused_set.return_value = False
         self.is_db_maintenance_mode.return_value = False
+        self.os_release.return_value = 'rocky'
+        self.relation_ids.return_value = []
         # disable hardening for unit tests
         harden._DISABLE_HARDENING_FOR_UNIT_TEST = True
 
@@ -124,6 +126,73 @@ class NovaCCHooksTests(CharmTestCase):
             pass
 
         super(NovaCCHooksTests, self).tearDown()
+
+    @patch.object(utils, 'get_metadata_settings')
+    def test_publish_remote_metadata(self, metadata):
+        metadata.return_value = {
+            'nova-metadata-host': 'metadata.example.test',
+            'nova-metadata-protocol': 'https',
+            'nova-metadata-port': 8775,
+            'shared-metadata-secret': 'controller-secret',
+        }
+        self.get_ca_cert_b64.return_value = 'encoded-ca'
+        hooks.publish_remote_metadata('remote:1')
+        self.relation_set.assert_called_once_with(
+            relation_id='remote:1', relation_settings={
+                'private-address': 'metadata.example.test',
+                'metadata-shared-secret': 'controller-secret',
+                'nova-metadata-protocol': 'https',
+                'nova-metadata-port': 8775,
+                'ca_cert': 'encoded-ca',
+            })
+
+    @patch.object(utils, 'get_metadata_settings')
+    def test_publish_remote_metadata_withdraws_unavailable_credentials(
+            self, metadata):
+        metadata.return_value = {}
+        self.get_ca_cert_b64.return_value = ''
+        self.relation_ids.return_value = ['remote:1', 'remote:2']
+        hooks.publish_remote_metadata()
+        self.assertEqual(2, self.relation_set.call_count)
+        for call_args in self.relation_set.call_args_list:
+            self.assertEqual({
+                'private-address': None,
+                'metadata-shared-secret': None,
+                'nova-metadata-protocol': None,
+                'nova-metadata-port': None,
+                'ca_cert': None,
+            }, call_args.kwargs['relation_settings'])
+
+    @patch.object(utils, 'get_metadata_settings')
+    def test_no_remote_relation_does_not_resolve_endpoint(self, metadata):
+        self.relation_ids.return_value = []
+        hooks.publish_remote_metadata()
+        metadata.assert_not_called()
+        self.relation_set.assert_not_called()
+
+    @patch('charmhelpers.contrib.openstack.ip.canonical_url')
+    @patch.object(hooks.hookenv, 'leader_get')
+    def test_remote_metadata_uses_controller_secret_and_vip(
+            self, leader_get, canonical_url):
+        self.os_release.return_value = 'caracal'
+        self.get_ca_cert_b64.return_value = ''
+        canonical_url.return_value = 'https://192.0.2.100'
+        for secret in ('initial-controller-secret', 'rotated-secret'):
+            with self.subTest(secret=secret):
+                leader_get.return_value = secret
+                hooks.publish_remote_metadata('remote:1')
+                settings = self.relation_set.call_args.kwargs[
+                    'relation_settings']
+                self.assertEqual('192.0.2.100', settings['private-address'])
+                self.assertEqual(secret, settings['metadata-shared-secret'])
+                self.assertEqual('https', settings['nova-metadata-protocol'])
+                self.assertEqual(8775, settings['nova-metadata-port'])
+                leader_get.assert_called_with('shared-metadata-secret')
+
+    @patch.object(hooks, 'publish_remote_metadata')
+    def test_update_nova_relation_refreshes_remote_metadata(self, publish):
+        hooks.update_nova_relation()
+        publish.assert_called_once_with()
 
     def test_install_hook(self):
         self.os_release.return_value = 'rocky'
@@ -950,7 +1019,8 @@ class NovaCCHooksTests(CharmTestCase):
                 'cloud-compute': ['nova-compute/0'],
                 'nova-cell-api': ['nova-cell-controller/0'],
                 'neutron-api': ['neutron-api/0'],
-                'quantum-network-service': ['neutron-gateway/0']
+                'quantum-network-service': ['neutron-gateway/0'],
+                'neutron-plugin-remote': [],
             }
             return relid[rel]
         self.relation_ids.side_effect = _relation_ids
@@ -1052,7 +1122,8 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'CONFIGS')
     def test_neutron_api_relation_changed(self, configs, mock_resource_map):
         mock_resource_map.return_value = {}
-        self.relation_ids.return_value = ['relid']
+        self.relation_ids.side_effect = lambda name: (
+            [] if name == 'neutron-plugin-remote' else ['relid'])
         _compute_joined = self.patch('compute_joined')
         _quantum_joined = self.patch('quantum_joined')
         hooks.neutron_api_relation_changed()
@@ -1068,7 +1139,8 @@ class NovaCCHooksTests(CharmTestCase):
                                          mock_resource_map):
         mock_resource_map.return_value = {}
         isfile.return_value = True
-        self.relation_ids.return_value = ['relid']
+        self.relation_ids.side_effect = lambda name: (
+            [] if name == 'neutron-plugin-remote' else ['relid'])
         _compute_joined = self.patch('compute_joined')
         _quantum_joined = self.patch('quantum_joined')
         hooks.neutron_api_relation_broken()
@@ -1292,8 +1364,11 @@ class NovaCCHooksTests(CharmTestCase):
                            compute_joined, quantum_joined, resource_map):
         resource_map.return_value = {}
         self.os_release.return_value = 'rocky'
-        relids = [['relid2'], ['relid1']]
-        self.relation_ids.side_effect = lambda x: relids.pop()
+        self.relation_ids.side_effect = lambda name: {
+            'neutron-plugin-remote': [],
+            'cloud-compute': ['relid1'],
+            'quantum-network-service': ['relid2'],
+        }[name]
         hooks.certs_changed()
         process_certificates.assert_called_once_with('nova', None, None,
                                                      group='nova')
