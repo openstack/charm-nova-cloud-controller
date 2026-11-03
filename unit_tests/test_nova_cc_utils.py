@@ -450,6 +450,23 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_wsgi_conf_releases(
+            self, subcontext, _exists, _os_release, rids):
+        _exists.return_value = False
+        self.enable_memcache.return_value = False
+        rids.return_value = []
+        for release, expected in (('stein', False), ('train', True),
+                                  ('flamingo', True), ('gazpacho', False)):
+            with self.subTest(release=release):
+                _os_release.return_value = release
+                self.os_release.return_value = release
+                _map = utils.resource_map()
+                self.assertEqual(utils.NOVA_WSGI_CONF in _map, expected)
+
+    @patch('charmhelpers.core.hookenv.relation_ids')
+    @patch('charmhelpers.contrib.openstack.neutron.os_release')
+    @patch('os.path.exists')
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_restart_map_api_ocata_base(
             self, subcontext, _exists, _os_release, rids):
         _os_release.return_value = 'ocata'
@@ -2008,6 +2025,12 @@ class NovaCCUtilsTests(CharmTestCase):
         exists.return_value = True
         utils.disable_deprecated_nova_placement_apache_site()
         remove.assert_called()
+
+    @patch('os.makedirs')
+    def test_ensure_wsgi_conf_dir(self, makedirs):
+        utils.ensure_wsgi_conf_dir()
+        makedirs.assert_called_once_with('/etc/nova/mod_wsgi.conf.d',
+                                         exist_ok=True)
 
     @patch.object(utils.ch_context, 'SharedDBContext')
     @patch.object(utils, 'get_cell_details')
