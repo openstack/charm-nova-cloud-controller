@@ -156,7 +156,7 @@ applications:
     num_units: 1
     to:
       - '12'
-    channel: latest/edge
+    channel: 1.8/stable
 
 relations:
 
